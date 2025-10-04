@@ -28,3 +28,6 @@ attr = "2077_langchain_test.__version__"
 [tool.setuptools.packages.find]
 where = [ "src",]
 namespaces = false
+
+[tool.kedro_telemetry]
+project_id = "b560fd4ee13040cb85b19bb4cdb8c4a9"
