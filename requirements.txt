@@ -1,0 +1,6 @@
+ipython>=8.10
+jupyterlab>=3.0
+langchain>=0.3.0
+notebook
+kedro~=1.0.0
+kedro-datasets==8.1.0
