@@ -3,6 +3,10 @@
 from typing import Any, Dict, List
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer, util
+from pathlib import Path
+
+from kedro.config import OmegaConfigLoader
+from kedro.framework.project import settings
 
 # Load model once so it doesn't reload per node execution
 _model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -12,8 +16,8 @@ def find_relevant_chunks(
     query: str,
     transcript_chunks: Dict[str, Any],
     character_list: List[str],
-    max_chunks: int = 2,
-    character_bonus: float = 0.05,  # small bonus for character mentions
+    max_chunks: int,
+    character_bonus: float
 ) -> List[Dict[str, Any]]:
     """
     Find the most relevant chunks for a given query directly from a PartitionedDataset,
@@ -22,7 +26,7 @@ def find_relevant_chunks(
     Args:
         query: The user query string.
         transcript_chunks: Dict of partitions (each loaded transcript chunk).
-        character_list: Optional list of character names to boost relevance.
+        character_list: List of character names to boost relevance.
         max_chunks: Maximum number of chunks to return.
         character_bonus: Weight added for each matched character in the chunk text.
     """
@@ -94,8 +98,14 @@ def format_prompt_with_context(prompt_template: Any, user_query: str, relevant_c
 
 def query_llm(formatted_prompt: str) -> str:
     """Query LLM with the formatted prompt."""
+    # Load  credentials
+    conf_path = Path(__file__).resolve().parents[4] / settings.CONF_SOURCE
+    conf_loader = OmegaConfigLoader(conf_source=str(conf_path))
+    credentials = conf_loader["credentials"]
+    openai_api_key = credentials["openai"]["api_key"]
+
     # Initialize the LLM
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
+    llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo", temperature=0.2)
     
     # Send the prompt and get response
     response = llm.invoke(formatted_prompt)
