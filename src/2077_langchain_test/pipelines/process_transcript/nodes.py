@@ -51,46 +51,6 @@ def extract_characters(transcript: str) -> List[str]:
     return sorted(list(characters))
 
 
-def create_transcript_index(chunks: Dict[str, Any]) -> Dict[str, Any]:
-    """Create an index of the transcript for quick searching.
-
-    This function expects a PartitionedDataset read shape (a dict mapping
-    partition keys to partition payloads). Partition payloads must be either
-    a single chunk dict or a list of chunk dicts.
-    """
-    combined: List[Dict[str, Any]] = []
-    for partition_key in sorted(chunks.keys()):
-        value = chunks[partition_key]
-
-        try:
-            if hasattr(value, "load") and callable(value.load):
-                loaded = value.load()
-            elif callable(value):
-                loaded = value()
-            else:
-                loaded = value
-        except Exception as exc:
-            raise TypeError(f"failed to load partition '{partition_key}': {exc}") from exc
-
-        if isinstance(loaded, list):
-            combined.extend(loaded)
-        elif isinstance(loaded, dict):
-            combined.append(loaded)
-        else:
-            raise TypeError(
-                f"partition '{partition_key}' contains unsupported payload type: {type(loaded)!r}. "
-                "Expected dict or list of dicts produced by partition_transcript_chunks."
-            )
-
-    index = {
-        'total_chunks': len(combined),
-        'total_characters': sum(chunk.get('character_count', 0) for chunk in combined),
-        'chunks': combined
-    }
-
-    return index
-
-
 def partition_transcript_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """Convert a list of chunk dicts into a partition mapping for Kedro's PartitionedDataSet.
 

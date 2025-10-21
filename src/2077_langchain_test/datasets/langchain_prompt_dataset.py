@@ -1,7 +1,7 @@
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 from kedro.io import AbstractDataset, DatasetError
 from kedro.io.catalog_config_resolver import CREDENTIALS_KEY
@@ -11,13 +11,53 @@ from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from kedro_datasets._typing import JSONPreview
 
 
-class LangChainPromptDataset(AbstractDataset[PromptTemplate | ChatPromptTemplate, Any]):
-    """Kedro dataset for loading LangChain prompts using existing Kedro datasets."""
+class LangChainPromptDataset(AbstractDataset[Union[PromptTemplate, ChatPromptTemplate], Any]): # noqa UP007
+    """
+    A Kedro dataset for loading LangChain prompt templates from text, JSON, or YAML files.
+
+    This dataset wraps existing Kedro datasets (such as TextDataset, JSONDataset, or YAMLDataset)
+    to load prompt configurations and convert them into LangChain `PromptTemplate` or
+    `ChatPromptTemplate` objects.
+
+    ### Example usage for the [YAML API](https://docs.kedro.org/en/stable/catalog-data/data_catalog_yaml_examples/):
+    ```yaml
+    my_prompt:
+        type: kedro_datasets_experimental.langchain.LangChainPromptDataset
+        filepath: data/prompts/my_prompt.json
+        template: PromptTemplate
+        dataset:
+            type: json.JSONDataset
+            fs_args:
+                load_args:
+                    encoding: utf-8
+                save_args:
+                    ensure_ascii: false
+        credentials: dev_creds
+        metadata:
+            kedro-viz:
+                layer: raw
+    ```
+
+    ### Example usage for the [Python API](https://docs.kedro.org/en/stable/catalog-data/advanced_data_catalog_usage/):
+    ```python
+    from kedro_datasets_experimental.langchain import LangChainPromptDataset
+
+    dataset = LangChainPromptDataset(
+        filepath="data/prompts/my_prompt.json",
+        template="PromptTemplate",
+        dataset={"type": "json.JSONDataset"}
+    )
+    prompt = dataset.load()
+    print(prompt.format(name="Kedro"))
+    ```
+    """
 
     TEMPLATES = {
         "PromptTemplate": "_create_prompt_template",
         "ChatPromptTemplate": "_create_chat_prompt_template",
     }
+
+    VALID_DATASETS = {"text.TextDataset", "json.JSONDataset", "yaml.YAMLDataset"}
 
     def __init__(  # noqa: PLR0913
         self,
@@ -85,26 +125,59 @@ class LangChainPromptDataset(AbstractDataset[PromptTemplate | ChatPromptTemplate
         except Exception as e:
             raise DatasetError(f"Failed to create underlying dataset: {e}")
 
-    def _build_dataset_config(self, dataset: dict[str, Any] | str | None) -> dict[str, Any]:
-        """Infer and normalize dataset configuration."""
+    def _validate_dataset_type(self, dataset: dict[str, Any] | str | None) -> None:
+        """Validate that the dataset type is supported and not None."""
         if dataset is None:
-            if self._filepath.endswith(".txt"):
-                dataset = {"type": "text.TextDataset"}
-            elif self._filepath.endswith(".json"):
-                dataset = {"type": "json.JSONDataset"}
-            elif self._filepath.endswith((".yaml", ".yml")):
-                dataset = {"type": "yaml.YAMLDataset"}
-            else:
-                raise DatasetError(f"Cannot auto-detect dataset type for file: {self._filepath}")
+            raise DatasetError(f"Underlying dataset type cannot be empty: {self._filepath}")
 
+        dataset_type = dataset["type"] if isinstance(dataset, dict) else str(dataset)
+        normalized_type = ".".join(dataset_type.split(".")[-2:])
+        if normalized_type not in self.VALID_DATASETS:
+            raise DatasetError(
+                f"Unsupported dataset type '{dataset_type}'. "
+                f"Allowed dataset types are: {', '.join(self.VALID_DATASETS)}"
+            )
+
+    def _build_dataset_config(self, dataset: dict[str, Any] | str | None) -> dict[str, Any]:
+        """
+        Build dataset configuration.
+
+        Raises:
+            DatasetError: If the dataset type is unsupported.
+            Currently supported dataset types are: text.TextDataset, json.JSONDataset, yaml.YAMLDataset
+
+        Returns:
+            dict: A normalized dataset configuration dictionary.
+        """
+        self._validate_dataset_type(dataset)
         dataset_config = dataset if isinstance(dataset, dict) else {"type": dataset}
         dataset_config = deepcopy(dataset_config)
         dataset_config["filepath"] = self._filepath
-
         return dataset_config
 
     def load(self) -> PromptTemplate | ChatPromptTemplate:
-        """Load data using underlying dataset and wrap in LangChain template."""
+        """
+        Loads the underlying dataset and converts the data into a LangChain prompt template.
+
+        This method retrieves raw prompt data from the underlying dataset (e.g., a JSON or YAML file)
+        and constructs the corresponding LangChain template — either a `PromptTemplate` or
+        `ChatPromptTemplate` — depending on the dataset configuration.
+
+        Raises:
+            DatasetError: If the dataset cannot be loaded, contains no data, or cannot be
+                converted into the expected prompt template.
+
+        Returns:
+            PromptTemplate | ChatPromptTemplate:
+                A fully initialized LangChain prompt object created from the dataset contents.
+
+        Example:
+            >>> dataset.load()
+            ChatPromptTemplate.from_messages([
+                ("system", "You are a helpful assistant."),
+                ("human", "{input}")
+            ])
+        """
         try:
             raw_data = self._dataset.load()
         except Exception as e:
@@ -151,12 +224,25 @@ class LangChainPromptDataset(AbstractDataset[PromptTemplate | ChatPromptTemplate
             return PromptTemplate.from_template(raw_data)
 
         if isinstance(raw_data, dict):
-           return PromptTemplate(**raw_data)
+            return PromptTemplate(**raw_data)
 
         raise DatasetError(f"Unsupported data type for PromptTemplate: {type(raw_data)}")
 
-    def _validate_chat_prompt_data(self, data: dict | list[tuple[str, str]]) -> None:
-        """Validate that chat prompt data exists and is not empty."""
+    def _validate_chat_prompt_data(self, data: dict | list[tuple[str, str]]) -> dict | list[tuple[str, str]]:
+        """
+        Validate that chat prompt data exists and is not empty.
+        Raises an error if data is a plain string, which is only compatible with PromptTemplate.
+
+        Returns validated and unpacked messages as a dictionary or a list of tuples.
+
+        Raises:
+            DatasetError: If the data is empty or is a plain string.
+        """
+        if isinstance(data, str):
+            raise DatasetError(
+                "Plain string data is only supported for PromptTemplate, not ChatPromptTemplate."
+            )
+
         messages = data.get("messages") if isinstance(data, dict) else data
         if not messages:
             raise DatasetError(
@@ -218,19 +304,24 @@ class LangChainPromptDataset(AbstractDataset[PromptTemplate | ChatPromptTemplate
         return self._dataset._exists() if hasattr(self._dataset, "_exists") else True
 
     def preview(self) -> JSONPreview:
-        """Generate a preview of the prompt data for Kedro-Viz."""
+        """
+        Generate a JSON-compatible preview of the underlying prompt data for Kedro-Viz.
+
+        Returns:
+            JSONPreview:
+                A Kedro-Viz-compatible object containing a serialized JSON string of the
+                processed data. If an exception occurs during processing, the returned
+                JSONPreview contains an error message instead of the dataset content.
+        Example:
+            >>> dataset.preview()
+            JSONPreview('{"messages": [{"role": "system", "content": "You are..."}]}')
+        """
         try:
             data = self._dataset.load()
 
             if isinstance(data, str):
                 # Wrap plain text in a dictionary or Viz doesn't render it
                 data = {"text": data}
-
-            # Restructure output so it's compatible with JSON
-            if isinstance(data, dict) and "messages" in data:
-                msgs = data["messages"]
-                if isinstance(msgs, dict):
-                    data["messages"] = [{"role": k, "content": v} for k, v in msgs.items()]
 
             return JSONPreview(json.dumps(data))
 
