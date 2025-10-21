@@ -51,49 +51,41 @@ def extract_characters(transcript: str) -> List[str]:
     return sorted(list(characters))
 
 
-def create_transcript_index(chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Create an index of the transcript for quick searching."""
-    # Support both the original list-of-chunks shape and Kedro's
-    # PartitionedDataset read shape (a dict mapping partition -> chunk or list).
-    if isinstance(chunks, dict):
-        # Combine partition values into a single list. Partition values may be
-        # a single chunk dict or a list of chunk dicts depending on how they
-        # were written; handle both cases.
-        combined: List[Dict[str, Any]] = []
-        for partition_key in sorted(chunks.keys()):
-            value = chunks[partition_key]
+def create_transcript_index(chunks: Dict[str, Any]) -> Dict[str, Any]:
+    """Create an index of the transcript for quick searching.
 
-            # If the partition value is a Kedro dataset object with a `load`
-            # method, call it. Some PartitionedDataset implementations return
-            # either the dataset instance or the bound `load` method.
-            try:
-                if hasattr(value, "load") and callable(value.load):
-                    loaded = value.load()
-                elif callable(value):
-                    loaded = value()
-                else:
-                    loaded = value
-            except Exception:
-                # If calling fails, fall back to raw value to avoid masking
-                # errors; the downstream checks will handle unexpected types.
-                loaded = value
+    This function expects a PartitionedDataset read shape (a dict mapping
+    partition keys to partition payloads). Partition payloads must be either
+    a single chunk dict or a list of chunk dicts.
+    """
+    combined: List[Dict[str, Any]] = []
+    for partition_key in sorted(chunks.keys()):
+        value = chunks[partition_key]
 
-            if isinstance(loaded, list):
-                combined.extend(loaded)
-            elif isinstance(loaded, dict):
-                combined.append(loaded)
+        try:
+            if hasattr(value, "load") and callable(value.load):
+                loaded = value.load()
+            elif callable(value):
+                loaded = value()
             else:
-                # Ignore values that are not dict/list after loading. This
-                # keeps the index resilient to unexpected partition contents.
-                continue
-        chunks_list = combined
-    else:
-        chunks_list = chunks or []
+                loaded = value
+        except Exception as exc:
+            raise TypeError(f"failed to load partition '{partition_key}': {exc}") from exc
+
+        if isinstance(loaded, list):
+            combined.extend(loaded)
+        elif isinstance(loaded, dict):
+            combined.append(loaded)
+        else:
+            raise TypeError(
+                f"partition '{partition_key}' contains unsupported payload type: {type(loaded)!r}. "
+                "Expected dict or list of dicts produced by partition_transcript_chunks."
+            )
 
     index = {
-        'total_chunks': len(chunks_list),
-        'total_characters': sum(chunk.get('character_count', 0) for chunk in chunks_list),
-        'chunks': chunks_list
+        'total_chunks': len(combined),
+        'total_characters': sum(chunk.get('character_count', 0) for chunk in combined),
+        'chunks': combined
     }
 
     return index
