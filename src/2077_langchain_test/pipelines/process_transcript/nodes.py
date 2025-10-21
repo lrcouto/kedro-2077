@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 def chunk_transcript(transcript: str, chunk_size: int = 1000, overlap: int = 200) -> List[Dict[str, Any]]:
     """Split the transcript into overlapping chunks for better context."""
-    # Clean up the transcript
+    # Clean up whitespaces
     cleaned_transcript = re.sub(r'\n+', '\n', transcript.strip())
     
     # Split into sentences/paragraphs
@@ -53,10 +53,66 @@ def extract_characters(transcript: str) -> List[str]:
 
 def create_transcript_index(chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Create an index of the transcript for quick searching."""
+    # Support both the original list-of-chunks shape and Kedro's
+    # PartitionedDataset read shape (a dict mapping partition -> chunk or list).
+    if isinstance(chunks, dict):
+        # Combine partition values into a single list. Partition values may be
+        # a single chunk dict or a list of chunk dicts depending on how they
+        # were written; handle both cases.
+        combined: List[Dict[str, Any]] = []
+        for partition_key in sorted(chunks.keys()):
+            value = chunks[partition_key]
+
+            # If the partition value is a Kedro dataset object with a `load`
+            # method, call it. Some PartitionedDataset implementations return
+            # either the dataset instance or the bound `load` method.
+            try:
+                if hasattr(value, "load") and callable(value.load):
+                    loaded = value.load()
+                elif callable(value):
+                    loaded = value()
+                else:
+                    loaded = value
+            except Exception:
+                # If calling fails, fall back to raw value to avoid masking
+                # errors; the downstream checks will handle unexpected types.
+                loaded = value
+
+            if isinstance(loaded, list):
+                combined.extend(loaded)
+            elif isinstance(loaded, dict):
+                combined.append(loaded)
+            else:
+                # Ignore values that are not dict/list after loading. This
+                # keeps the index resilient to unexpected partition contents.
+                continue
+        chunks_list = combined
+    else:
+        chunks_list = chunks or []
+
     index = {
-        'total_chunks': len(chunks),
-        'total_characters': sum(chunk['character_count'] for chunk in chunks),
-        'chunks': chunks
+        'total_chunks': len(chunks_list),
+        'total_characters': sum(chunk.get('character_count', 0) for chunk in chunks_list),
+        'chunks': chunks_list
     }
-    
+
     return index
+
+
+def partition_transcript_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Convert a list of chunk dicts into a partition mapping for Kedro's PartitionedDataSet.
+
+    Returns a dict where keys are partition names and values are the chunk payloads.
+    Example: {"chunk_0": { ...chunk data... }, "chunk_1": { ... }}
+    """
+    partitions: Dict[str, Dict[str, Any]] = {}
+    for chunk in chunks:
+        chunk_id = chunk.get('chunk_id')
+        if chunk_id is None:
+            # fallback to index position
+            chunk_id = len(partitions)
+
+        partition_key = f"chunk_{chunk_id}"
+        partitions[partition_key] = chunk
+
+    return partitions

@@ -10,8 +10,11 @@ cyberpunk_transcript:
 
 # Processed transcript data
 transcript_chunks:
-  type: json.JSONDataset
-  filepath: data/processed/transcript_chunks.json
+  type: partitions.PartitionedDataset
+  path: data/processed/transcript_chunks
+  dataset:
+    type: json.JSONDataset
+    filepath: data/processed/transcript_chunks/{partition}.json
 
 character_list:
   type: json.JSONDataset

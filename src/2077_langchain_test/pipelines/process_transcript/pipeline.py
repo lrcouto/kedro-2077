@@ -4,7 +4,7 @@ generated using Kedro 1.0.0
 """
 
 from kedro.pipeline import Node, Pipeline
-from .nodes import chunk_transcript, extract_characters, create_transcript_index
+from .nodes import chunk_transcript, extract_characters, create_transcript_index, partition_transcript_chunks
 
 def create_pipeline(**kwargs) -> Pipeline:
     """Create the process transcript pipeline."""
@@ -13,8 +13,14 @@ def create_pipeline(**kwargs) -> Pipeline:
             Node(
                 func=chunk_transcript,
                 inputs="cyberpunk_transcript",
-                outputs="transcript_chunks",
+                outputs="raw_transcript_chunks",
                 name="chunk_transcript",
+            ),
+            Node(
+                func=partition_transcript_chunks,
+                inputs="raw_transcript_chunks",
+                outputs="transcript_chunks",
+                name="partition_transcript_chunks",
             ),
             Node(
                 func=extract_characters,
