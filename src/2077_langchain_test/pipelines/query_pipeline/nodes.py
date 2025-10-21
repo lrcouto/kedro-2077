@@ -105,11 +105,9 @@ def query_llm(formatted_prompt: str) -> str:
     openai_api_key = credentials["openai"]["api_key"]
 
     # Initialize the LLM
-    llm = ChatOpenAI(api_key=openai_api_key, model="gpt-3.5-turbo", temperature=0.2)
+    llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.2)
     
     # Send the prompt and get response
     response = llm.invoke(formatted_prompt)
-
-    print(response.content)
     
     return response.content
