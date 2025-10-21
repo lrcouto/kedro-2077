@@ -7,3 +7,4 @@
 user_query: "What is the main plot of the game?"
 max_chunks: 2
 max_context_length: 2000
+character_bonus: 0.05

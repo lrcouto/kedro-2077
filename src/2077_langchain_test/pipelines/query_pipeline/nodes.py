@@ -2,52 +2,63 @@
 
 from typing import Any, Dict, List
 from langchain_openai import ChatOpenAI
+from sentence_transformers import SentenceTransformer, util
+
+# Load model once so it doesn't reload per node execution
+_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def find_relevant_chunks(
     query: str,
     transcript_chunks: Dict[str, Any],
-    max_chunks: int = 2
+    character_list: List[str],
+    max_chunks: int = 2,
+    character_bonus: float = 0.05,  # small bonus for character mentions
 ) -> List[Dict[str, Any]]:
     """
-    Find the most relevant chunks for a given query directly from a PartitionedDataset.
-    
+    Find the most relevant chunks for a given query directly from a PartitionedDataset,
+    using embeddings for semantic similarity and with a bonus for matching character names.
+
     Args:
         query: The user query string.
-        transcript_chunks: A dict of partitions (each one is a loaded chunk of transcript).
-        max_chunks: The maximum number of chunks to return.
+        transcript_chunks: Dict of partitions (each loaded transcript chunk).
+        character_list: Optional list of character names to boost relevance.
+        max_chunks: Maximum number of chunks to return.
+        character_bonus: Weight added for each matched character in the chunk text.
     """
-    query_lower = query.lower()
-    query_words = set(query_lower.split())
+    # Encode the query
+    query_emb = _model.encode(query, convert_to_tensor=True)
+
+    # Identify which characters are in the query (if applicable)
+    mentioned_characters = []
+    if character_list:
+        query_lower = query.lower()
+        mentioned_characters = [c for c in character_list if c.lower() in query_lower]
 
     scored_chunks = []
 
-    # Iterate through all partitions
     for partition_name, chunk_data in transcript_chunks.items():
-        # Each partition may be a dict (e.g., {"text": "...", ...})
         if not isinstance(chunk_data, dict) or "text" not in chunk_data:
             continue
 
-        chunk_text_lower = chunk_data["text"].lower()
-        chunk_words = set(chunk_text_lower.split())
+        chunk_text = chunk_data["text"]
+        chunk_emb = _model.encode(chunk_text, convert_to_tensor=True)
 
-        # Simple overlap scoring
-        word_overlap = len(query_words.intersection(chunk_words))
-        word_ratio = word_overlap / len(query_words) if query_words else 0
+        # Base similarity score (cosine similarity)
+        similarity = util.cos_sim(query_emb, chunk_emb).item()
 
-        # Bonus for exact phrase matches
-        phrase_bonus = 1 if query_lower in chunk_text_lower else 0
+        # Add small bonus if characters mentioned in query appear in this chunk
+        if mentioned_characters:
+            chunk_lower = chunk_text.lower()
+            for char in mentioned_characters:
+                if char.lower() in chunk_lower:
+                    similarity += character_bonus
 
-        score = word_ratio + phrase_bonus
+        scored_chunks.append((similarity, chunk_data))
 
-        if score > 0:
-            scored_chunks.append((score, partition_name, chunk_data))
-
-    # Sort by score (descending)
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
 
-    # Return the top chunks (you can also include partition_name if helpful)
-    return [chunk for _, _, chunk in scored_chunks[:max_chunks]]
+    return [chunk for _, chunk in scored_chunks[:max_chunks]]
 
 
 def format_prompt_with_context(prompt_template: Any, user_query: str, relevant_chunks: List[Dict[str, Any]], max_context_length: int = 2000) -> str:
@@ -82,7 +93,7 @@ def format_prompt_with_context(prompt_template: Any, user_query: str, relevant_c
 
 
 def query_llm(formatted_prompt: str) -> str:
-    """Query OpenAI LLM with the formatted prompt."""
+    """Query LLM with the formatted prompt."""
     # Initialize the LLM
     llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
     

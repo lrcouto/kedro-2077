@@ -10,7 +10,7 @@ def create_pipeline() -> Pipeline:
         [
             Node(
                 func=find_relevant_chunks,
-                inputs=["params:user_query", "transcript_chunks", "params:max_chunks"],
+                inputs=["params:user_query", "transcript_chunks", "character_list", "params:max_chunks"],
                 outputs="relevant_chunks",
                 name="find_relevant_chunks",
             ),
