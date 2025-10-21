@@ -45,7 +45,7 @@ def format_prompt_with_context(prompt_template: Any, user_query: str, relevant_c
         if len(chunk_text) > max_context_length:
             chunk_text = chunk_text[:max_context_length] + "..."
         
-        # Check if adding this chunk would exceed our limit
+        # Check if adding this chunk would exceed token limit
         if total_length + len(chunk_text) > max_context_length * len(relevant_chunks):
             break
             

@@ -3,5 +3,5 @@ process_transcript:
   overlap: 200
 
 query:
-  max_chunks: 3
-  user_query: "Who is V and what is their background?"
+  max_chunks: 2
+  user_query: "What is the main plot of the game?"
