@@ -52,7 +52,7 @@ def extract_characters(transcript: str) -> List[str]:
 
 
 def partition_transcript_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """Convert a list of chunk dicts into a partition mapping for Kedro's PartitionedDataSet.
+    """Convert a list of chunk dicts into a partition mapping for Kedro's PartitionedDataset.
 
     Returns a dict where keys are partition names and values are the chunk payloads.
     Example: {"chunk_0": { ...chunk data... }, "chunk_1": { ... }}

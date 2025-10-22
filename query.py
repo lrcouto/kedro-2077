@@ -8,12 +8,14 @@ def run_query(project_path: Path, query: str) -> str:
     metadata = bootstrap_project(project_path)
     configure_project(metadata.package_name)
 
-    # Each query requires a fresh session with runtime_params
+    processed_data_path = project_path / "data" / "processed"
+    pipeline_to_run = "__default__" if not processed_data_path.exists() else "query_pipeline"
+
     with KedroSession.create(
         project_path=project_path,
         runtime_params={"user_query": query}
     ) as session:
-        result = session.run(pipeline_name="__default__")
+        result = session.run(pipeline_name=pipeline_to_run)
 
     llm_response = result.get("llm_response")
     if hasattr(llm_response, "load"):
