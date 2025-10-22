@@ -22,7 +22,7 @@ character_list:
 
 # Prompt template loaded with LangChainPromptDataset
 query_prompt:
-  type: 2077_langchain_test.datasets.langchain_prompt_dataset.LangChainPromptDataset
+  type: kedro_2077.datasets.langchain_prompt_dataset.LangChainPromptDataset
   filepath: data/prompts/query_prompt.txt
   template: PromptTemplate
   dataset:

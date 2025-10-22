@@ -1,5 +1,5 @@
-"""2077 LangChain Test file for ensuring the package is executable
-as `2077-langchain-test` and `python -m 2077_langchain_test`
+"""Kedro 2077 file for ensuring the package is executable
+as `kedro-2077` and `python -m kedro_2077`.
 """
 import sys
 from pathlib import Path
