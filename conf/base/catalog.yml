@@ -3,12 +3,16 @@
 # Documentation for this file format can be found in "The Data Catalog"
 # Link: https://docs.kedro.org/en/stable/data/data_catalog.html
 
-# Cyberpunk 2077 Transcript Dataset
+# Raw data
 cyberpunk_transcript:
   type: text.TextDataset
-  filepath: data/transcript/Cyberpunk2077Transcript.txt
+  filepath: data/raw/Cyberpunk2077Transcript.txt
 
-# Processed transcript data
+cyberpunk_wiki:
+  type: json.JSONDataset
+  filepath: data/raw/wiki_clean_text.json
+
+# Processed data
 transcript_chunks:
   type: partitions.PartitionedDataset
   path: data/processed/transcript_chunks
@@ -19,6 +23,10 @@ transcript_chunks:
 character_list:
   type: json.JSONDataset
   filepath: data/processed/character_list.json
+
+wiki_embeddings:
+  type: pickle.PickleDataset
+  filepath: data/processed/wiki_embeddings.pkl
 
 # Prompt template loaded with LangChainPromptDataset
 query_prompt:

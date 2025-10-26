@@ -160,3 +160,9 @@ venv.bak/
 
 # mlflow local runs
 mlruns/*
+
+# Wiki scraping stuff
+wiki/*
+
+# Copilot files
+copilot-instructions.md

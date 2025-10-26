@@ -4,7 +4,7 @@ generated using Kedro 1.0.0
 """
 
 from kedro.pipeline import Node, Pipeline
-from .nodes import chunk_transcript, extract_characters, partition_transcript_chunks
+from .nodes import chunk_transcript, extract_characters, partition_transcript_chunks, embed_wiki_pages
 
 def create_pipeline(**kwargs) -> Pipeline:
     """Create the process transcript pipeline."""
@@ -28,5 +28,11 @@ def create_pipeline(**kwargs) -> Pipeline:
                 outputs="character_list",
                 name="extract_characters",
             ),
+            Node(
+                func=embed_wiki_pages,
+                inputs="cyberpunk_wiki",
+                outputs="wiki_embeddings",
+                name="embed_wiki_pages_node"
+            )
         ]
     )

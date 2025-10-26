@@ -4,7 +4,10 @@ generated using Kedro 1.0.0
 """
 import re
 from typing import Any, Dict, List
+from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
+_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def chunk_transcript(transcript: str, chunk_size: int = 1000, overlap: int = 200) -> List[Dict[str, Any]]:
     """Split the transcript into overlapping chunks for better context."""
@@ -68,3 +71,33 @@ def partition_transcript_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Dict[
         partitions[partition_key] = chunk
 
     return partitions
+
+
+def embed_wiki_pages(wiki_data: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Compute embeddings for each wiki page using SentenceTransformer.
+
+    Args:
+        wiki_data: Dict where keys are page titles and values are plain text content.
+    Returns:
+        Dict with structure:
+        {
+            "Page Title": {
+                "text": "...",
+                "embedding": np.ndarray([...])
+            },
+            ...
+        }
+    """
+
+    embedded_pages: Dict[str, Dict[str, Any]] = {}
+
+    print(f"🧠 Embedding {len(wiki_data)} wiki pages...")
+    for title, text in tqdm(wiki_data.items()):
+        if not text.strip():
+            continue
+        embedding = _model.encode(text, convert_to_numpy=True)
+        embedded_pages[title] = {"text": text, "embedding": embedding}
+
+    print(f"✅ Embedded {len(embedded_pages)} pages successfully.")
+    return embedded_pages
