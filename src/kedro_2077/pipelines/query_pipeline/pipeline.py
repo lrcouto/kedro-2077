@@ -1,7 +1,7 @@
 """Query pipeline for Cyberpunk 2077 transcript."""
 
 from kedro.pipeline import Node, Pipeline
-from .nodes import find_relevant_chunks, format_prompt_with_context, query_llm
+from .nodes import find_relevant_contexts, format_prompt_with_context, query_llm
 
 
 def create_pipeline() -> Pipeline:
@@ -9,8 +9,8 @@ def create_pipeline() -> Pipeline:
     return Pipeline(
         [
             Node(
-                func=find_relevant_chunks,
-                inputs=["params:user_query", "transcript_chunks", "character_list", "params:max_chunks", "params:character_bonus"],
+                func=find_relevant_contexts,
+                inputs=["params:user_query", "transcript_chunks", "wiki_embeddings", "character_list", "params:max_chunks", "params:character_bonus", "params:wiki_weight"],
                 outputs="relevant_chunks",
                 name="find_relevant_chunks",
             ),

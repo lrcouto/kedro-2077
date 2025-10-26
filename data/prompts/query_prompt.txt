@@ -1,7 +1,13 @@
-You are an expert on Cyberpunk 2077. Based on the following transcript excerpts, please answer this question: {user_query}
+You are an expert in the Cyberpunk 2077 lore, setting and narrative.
 
-TRANSCRIPT EXCERPTS:
+Using ONLY the information provided below from in-game transcripts and wiki entries, answer the following question:
+{user_query}
+
+CONTEXT MATERIALS:
 {transcript_context}
 
-DO NOT use information that is not on the provided context.
-Please provide a detailed answer based on the transcript content above.
+Guidelines:
+- Use both sources (transcripts and wiki) when relevant, but prioritize transcript content if there are conflicts.
+- Do NOT include any information that is not present in the provided context.
+- When possible, cite whether information comes from the [TRANSCRIPT] or [WIKI] parts of the context.
+- Provide a concise but detailed answer that stays faithful to the given materials.

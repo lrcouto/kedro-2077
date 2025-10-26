@@ -6,3 +6,4 @@ query:
   max_chunks: 2
   user_query: "What is the main plot of the game?"
   character_bonus: 0.05
+  wiki_weight: 0.7

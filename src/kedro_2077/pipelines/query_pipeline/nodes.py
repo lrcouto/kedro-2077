@@ -1,9 +1,10 @@
 """Query pipeline nodes for Cyberpunk 2077 transcript."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer, util
 from pathlib import Path
+import torch
 
 from kedro.config import OmegaConfigLoader
 from kedro.framework.project import settings
@@ -12,87 +13,93 @@ from kedro.framework.project import settings
 _model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
-def find_relevant_chunks(
+def find_relevant_contexts(
     query: str,
     transcript_chunks: Dict[str, Any],
+    wiki_embeddings: Dict[str, Dict[str, Any]],
     character_list: List[str],
-    max_chunks: int,
-    character_bonus: float
+    max_chunks: int = 5,
+    character_bonus: float = 0.05,
+    wiki_weight: float = 0.7
 ) -> List[Dict[str, Any]]:
     """
-    Find the most relevant chunks for a given query directly from a PartitionedDataset,
-    using embeddings for semantic similarity and with a bonus for matching character names.
+    Retrieve top relevant contexts from both transcript chunks and wiki embeddings.
 
     Args:
         query: The user query string.
-        transcript_chunks: Dict of partitions (each loaded transcript chunk).
-        character_list: List of character names to boost relevance.
-        max_chunks: Maximum number of chunks to return.
-        character_bonus: Weight added for each matched character in the chunk text.
+        transcript_chunks: PartitionedDataset with text chunks.
+        wiki_embeddings: Dict with 'page_title' -> {'text': ..., 'embedding': np.ndarray}.
+        character_list: Character names list to boost relevance.
+        max_chunks: Max number of transcript chunks to return.
+        character_bonus: Similarity boost for character matches.
+        wiki_weight: Relative weight of wiki similarity when combining results.
+
+    Returns:
+        List of the most relevant text contexts (mixed transcript + wiki).
     """
-    # Encode the query
+    import torch
+
     query_emb = _model.encode(query, convert_to_tensor=True)
 
-    # Identify which characters are in the query (if applicable)
-    mentioned_characters = []
-    if character_list:
-        query_lower = query.lower()
-        mentioned_characters = [c for c in character_list if c.lower() in query_lower]
+    # Characters mentioned in the query
+    query_lower = query.lower()
+    mentioned_characters = [c for c in character_list if c.lower() in query_lower]
 
-    scored_chunks = []
+    results = []
 
-    for partition_name, chunk_data in transcript_chunks.items():
+    # ---- Transcript similarity ----
+    for chunk_data in transcript_chunks.values():
         if not isinstance(chunk_data, dict) or "text" not in chunk_data:
             continue
+        text = chunk_data["text"]
+        emb = _model.encode(text, convert_to_tensor=True)
+        sim = util.cos_sim(query_emb, emb).item()
 
-        chunk_text = chunk_data["text"]
-        chunk_emb = _model.encode(chunk_text, convert_to_tensor=True)
-
-        # Base similarity score (cosine similarity)
-        similarity = util.cos_sim(query_emb, chunk_emb).item()
-
-        # Add small bonus if characters mentioned in query appear in this chunk
         if mentioned_characters:
-            chunk_lower = chunk_text.lower()
-            for char in mentioned_characters:
-                if char.lower() in chunk_lower:
-                    similarity += character_bonus
+            for c in mentioned_characters:
+                if c.lower() in text.lower():
+                    sim += character_bonus
 
-        scored_chunks.append((similarity, chunk_data))
+        results.append((sim, "transcript", text))
 
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
+    # ---- Wiki similarity ----
+    for title, page in wiki_embeddings.items():
+        # Get embedding and convert to tensor if it isn't already
+        emb = page["embedding"]
+        if not isinstance(emb, torch.Tensor):
+            emb = torch.tensor(emb)
+        text = page["text"]
 
-    return [chunk for _, chunk in scored_chunks[:max_chunks]]
+        sim = util.cos_sim(query_emb, emb).item() * wiki_weight
+        results.append((sim, "wiki", f"{title}: {text[:1000]}..."))
+
+    # Sort by score
+    results.sort(key=lambda x: x[0], reverse=True)
+
+    # Return top-N contexts
+    top_results = [
+        {"source": src, "text": txt, "similarity": sim}
+        for sim, src, txt in results[:max_chunks]
+    ]
+
+    return top_results
 
 
-def format_prompt_with_context(prompt_template: Any, user_query: str, relevant_chunks: List[Dict[str, Any]], max_context_length: int = 2000) -> str:
-    """Format the prompt template with user query and transcript context."""
-    # Combine relevant chunks into context, but truncate each chunk
-    context_parts = []
-    total_length = 0
-    
-    for chunk in relevant_chunks:
-        chunk_text = chunk['text']
-        
-        # Truncate chunk if it's too long
-        if len(chunk_text) > max_context_length:
-            chunk_text = chunk_text[:max_context_length] + "..."
-        
-        # Check if adding this chunk would exceed token limit
-        if total_length + len(chunk_text) > max_context_length * len(relevant_chunks):
-            break
-            
-        context_parts.append(chunk_text)
-        total_length += len(chunk_text)
-    
-    transcript_context = "\n\n---\n\n".join(context_parts)
-    
-    # Format the prompt template with the variables
+def format_prompt_with_context(prompt_template: Any, user_query: str, contexts: List[Dict[str, Any]], max_context_length: int = 2000) -> str:
+    """Format the LLM prompt with user query and retrieved contexts."""
+    context_blocks = []
+    for ctx in contexts:
+        src_label = f"[{ctx['source'].upper()}]"
+        truncated = ctx["text"][:max_context_length]
+        context_blocks.append(f"{src_label}\n{truncated}")
+
+    combined_context = "\n\n---\n\n".join(context_blocks)
+
     formatted_prompt = prompt_template.format(
         user_query=user_query,
-        transcript_context=transcript_context
+        transcript_context=combined_context
     )
-    
+
     return formatted_prompt
 
 
