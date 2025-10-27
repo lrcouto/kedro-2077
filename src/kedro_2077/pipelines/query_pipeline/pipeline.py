@@ -11,12 +11,12 @@ def create_pipeline() -> Pipeline:
             Node(
                 func=find_relevant_contexts,
                 inputs=["params:user_query", "transcript_chunks", "wiki_embeddings", "character_list", "params:max_chunks", "params:character_bonus", "params:wiki_weight"],
-                outputs="relevant_chunks",
-                name="find_relevant_chunks",
+                outputs="relevant_contexts",
+                name="find_relevant_contexts",
             ),
             Node(
                 func=format_prompt_with_context,
-                inputs=["query_prompt", "params:user_query", "relevant_chunks", "params:max_context_length"],
+                inputs=["query_prompt", "params:user_query", "relevant_contexts", "params:max_context_length"],
                 outputs="formatted_prompt",
                 name="format_prompt_with_context",
             ),

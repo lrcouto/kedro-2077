@@ -10,8 +10,17 @@ import torch
 from kedro.config import OmegaConfigLoader
 from kedro.framework.project import settings
 
+
 # Load model once so it doesn't reload per node execution
 _model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Load credentials and initialize LLM once or they'll reload every time the loop runs
+conf_path = Path(__file__).resolve().parents[4] / settings.CONF_SOURCE
+conf_loader = OmegaConfigLoader(conf_source=str(conf_path))
+credentials = conf_loader["credentials"]
+openai_api_key = credentials["openai"]["api_key"]
+
+llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.2)
 
 
 def find_relevant_contexts(
@@ -123,15 +132,6 @@ def query_llm(
     to start automatically when executing `kedro run`.
     Maintains conversation history for context.
     """
-
-    # Load credentials
-    conf_path = Path(__file__).resolve().parents[4] / settings.CONF_SOURCE
-    conf_loader = OmegaConfigLoader(conf_source=str(conf_path))
-    credentials = conf_loader["credentials"]
-    openai_api_key = credentials["openai"]["api_key"]
-
-    # Initialize LLM
-    llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.2)
 
     print("\nI am a machine that answers questions about Cyberpunk 2077!")
     print("Type your question about the game world or characters.")
