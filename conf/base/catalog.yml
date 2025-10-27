@@ -31,7 +31,7 @@ wiki_embeddings:
 # Prompt template loaded with LangChainPromptDataset
 query_prompt:
   type: kedro_2077.datasets.langchain_prompt_dataset.LangChainPromptDataset
-  filepath: data/prompts/query_prompt.txt
-  template: PromptTemplate
+  filepath: data/prompts/query_prompt.json
+  template: ChatPromptTemplate
   dataset:
-    type: text.TextDataset
+    type: json.JSONDataset

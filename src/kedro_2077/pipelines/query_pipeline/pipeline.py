@@ -22,7 +22,7 @@ def create_pipeline() -> Pipeline:
             ),
             Node(
                 func=query_llm,
-                inputs=["formatted_prompt", "transcript_chunks", "wiki_embeddings", "character_list", "query_prompt"],
+                inputs=["transcript_chunks", "wiki_embeddings", "character_list", "params:max_context_length", "query_prompt"],
                 outputs="llm_response",
                 name="query_llm",
             ),

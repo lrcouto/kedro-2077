@@ -1,6 +1,7 @@
 """Query pipeline nodes for Cyberpunk 2077 transcript."""
 
 from typing import Any, Dict, List
+from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer, util
 from pathlib import Path
@@ -37,7 +38,6 @@ def find_relevant_contexts(
     Returns:
         List of the most relevant text contexts (mixed transcript + wiki).
     """
-    import torch
 
     query_emb = _model.encode(query, convert_to_tensor=True)
 
@@ -85,8 +85,16 @@ def find_relevant_contexts(
     return top_results
 
 
-def format_prompt_with_context(prompt_template: Any, user_query: str, contexts: List[Dict[str, Any]], max_context_length: int = 2000) -> str:
-    """Format the LLM prompt with user query and retrieved contexts."""
+def format_prompt_with_context(
+    prompt_template: ChatPromptTemplate,
+    user_query: str,
+    contexts: List[Dict[str, Any]],
+    max_context_length: int = 2000,
+):
+    """
+    Format a ChatPromptTemplate with the user query and retrieved contexts.
+    """
+
     context_blocks = []
     for ctx in contexts:
         src_label = f"[{ctx['source'].upper()}]"
@@ -95,23 +103,25 @@ def format_prompt_with_context(prompt_template: Any, user_query: str, contexts: 
 
     combined_context = "\n\n---\n\n".join(context_blocks)
 
-    formatted_prompt = prompt_template.format(
+    messages = prompt_template.format_messages(
         user_query=user_query,
         transcript_context=combined_context
     )
 
-    return formatted_prompt
+    return messages
 
 
 def query_llm(
-        formatted_prompt: str = None,
-        transcript_chunks: Dict[str, Any] = None,
-        wiki_embeddings: Dict[str, Dict[str, Any]] = None,
-        character_list: List[str] = None,
-        prompt_template: str = None) -> None:
+    transcript_chunks: Dict[str, Any] = None,
+    wiki_embeddings: Dict[str, Dict[str, Any]] = None,
+    character_list: List[str] = None,
+    max_context_length: int = 2000,
+    prompt_template: ChatPromptTemplate = None
+) -> None:
     """
     Interactive conversation loop to allow the chat
     to start automatically when executing `kedro run`.
+    Maintains conversation history for context.
     """
 
     # Load credentials
@@ -127,6 +137,8 @@ def query_llm(
     print("Type your question about the game world or characters.")
     print("Type 'exit' to quit.\n")
 
+    conversation_history: List[Any] = []
+
     while True:
         user_query = input("🟢 You: ").strip()
         if not user_query:
@@ -135,7 +147,7 @@ def query_llm(
             print("👋 Goodbye, choom!")
             return ""
 
-        # Somewhat cursed way to re-run the pipeline
+        # Hacky cursed loop to find relevant contexts and format prompt each turn
         contexts = find_relevant_contexts(
             query=user_query,
             transcript_chunks=transcript_chunks,
@@ -143,12 +155,19 @@ def query_llm(
             character_list=character_list,
         )
 
-        formatted_prompt = format_prompt_with_context(
+        new_messages = format_prompt_with_context(
             prompt_template=prompt_template,
             user_query=user_query,
             contexts=contexts,
+            max_context_length=max_context_length
         )
 
-        response = llm.invoke(formatted_prompt)
+        # Append new messages to conversation history
+        conversation_history.extend(new_messages)
+        response = llm.invoke(conversation_history)
+
         print("\n⚪ LLM:", response.content)
         print("\n" + "-" * 80 + "\n")
+
+        # Append LLM response to conversation history for next turn
+        conversation_history.append({"role": "ai", "content": response.content})
