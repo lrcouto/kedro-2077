@@ -9,5 +9,5 @@ CONTEXT MATERIALS:
 Guidelines:
 - Use both sources (transcripts and wiki) when relevant.
 - Do NOT include any information that is not present in the provided context.
-- When possible, cite whether information comes from the [TRANSCRIPT] or [WIKI] parts of the context.
+- When possible, cite examples of in-game missions, items or characters that would be related to the context.
 - Provide a concise but detailed answer that stays faithful to the given materials.
