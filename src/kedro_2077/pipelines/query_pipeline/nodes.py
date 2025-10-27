@@ -1,6 +1,6 @@
 """Query pipeline nodes for Cyberpunk 2077 transcript."""
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer, util
 from pathlib import Path
@@ -103,18 +103,52 @@ def format_prompt_with_context(prompt_template: Any, user_query: str, contexts: 
     return formatted_prompt
 
 
-def query_llm(formatted_prompt: str) -> str:
-    """Query LLM with the formatted prompt."""
-    # Load  credentials
+def query_llm(
+        formatted_prompt: str = None,
+        transcript_chunks: Dict[str, Any] = None,
+        wiki_embeddings: Dict[str, Dict[str, Any]] = None,
+        character_list: List[str] = None,
+        prompt_template: str = None) -> None:
+    """
+    Interactive conversation loop to allow the chat
+    to start automatically when executing `kedro run`.
+    """
+
+    # Load credentials
     conf_path = Path(__file__).resolve().parents[4] / settings.CONF_SOURCE
     conf_loader = OmegaConfigLoader(conf_source=str(conf_path))
     credentials = conf_loader["credentials"]
     openai_api_key = credentials["openai"]["api_key"]
 
-    # Initialize the LLM
+    # Initialize LLM
     llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.2)
-    
-    # Send the prompt and get response
-    response = llm.invoke(formatted_prompt)
-    
-    return response.content
+
+    print("\nI am a machine that answers questions about Cyberpunk 2077!")
+    print("Type your question about the game world or characters.")
+    print("Type 'exit' to quit.\n")
+
+    while True:
+        user_query = input("🟢 You: ").strip()
+        if not user_query:
+            continue
+        if user_query.lower() in {"exit", "quit"}:
+            print("👋 Goodbye, choom!")
+            return ""
+
+        # Somewhat cursed way to re-run the pipeline
+        contexts = find_relevant_contexts(
+            query=user_query,
+            transcript_chunks=transcript_chunks,
+            wiki_embeddings=wiki_embeddings,
+            character_list=character_list,
+        )
+
+        formatted_prompt = format_prompt_with_context(
+            prompt_template=prompt_template,
+            user_query=user_query,
+            contexts=contexts,
+        )
+
+        response = llm.invoke(formatted_prompt)
+        print("\n⚪ LLM:", response.content)
+        print("\n" + "-" * 80 + "\n")
