@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is a small project using Kedro and Langchain to run LLM queries on the full transcript of Cyberpunk 2077.
+This is a small project using Kedro and Langchain to run LLM queries on the full transcript of Cyberpunk 2077, and the content of the Cyberpunk wiki.
 
 ## How to run
 
@@ -16,4 +16,5 @@ openai:
   api_key: "your-api-key"
 ```
 
-- Run the `query.py` Python script
+- `kedro run` will process the raw data, and start a loop to query the LLM.
+- Once the data is processed, you can instead run `kedro run --pipeline=query_pipeline` to only query the LLM, as reprocessing the data takes some time.
