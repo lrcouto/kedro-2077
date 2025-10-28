@@ -120,7 +120,7 @@ def format_prompt_with_context(
     return messages
 
 
-def query_llm(
+def query_llm_cli(
     transcript_chunks: Dict[str, Any] = None,
     wiki_embeddings: Dict[str, Dict[str, Any]] = None,
     character_list: List[str] = None,
@@ -171,3 +171,20 @@ def query_llm(
 
         # Append LLM response to conversation history for next turn
         conversation_history.append({"role": "ai", "content": response.content})
+
+
+def query_llm_discord(
+    formatted_prompt: List[Dict[str, Any]],
+) -> str:
+    """
+    Run a single LLM query for Discord usage.
+    Returns a string response.
+    """
+
+    if not formatted_prompt:
+        return "Hey choom, I need a question to answer!"
+
+    # Run LLM
+    response = llm.invoke(formatted_prompt)
+
+    return response.content

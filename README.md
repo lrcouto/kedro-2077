@@ -16,5 +16,5 @@ openai:
   api_key: "your-api-key"
 ```
 
-- `kedro run` will process the raw data, and start a loop to query the LLM.
-- Once the data is processed, you can instead run `kedro run --pipeline=query_pipeline` to only query the LLM, as reprocessing the data takes some time.
+- `kedro run --pipeline=process_transcript` will process the raw data and build embeddings.
+- Once the data is processed, you can run `kedro run --pipeline=query_pipeline --tags=cli` to start a CLI "chatbot".
