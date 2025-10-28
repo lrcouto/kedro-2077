@@ -101,13 +101,13 @@ async def run_query(ctx, *, user_query: str):
                 project_path=project_path,
                 runtime_params={"user_query": user_query}
             ) as session:
-                return session.run(pipeline_name="query_discord")
+                return session.run(pipeline_name="query_pipeline", tags=["discord"])
 
         result = await asyncio.to_thread(run_kedro)
 
         # Extract LLM node output
         llm_memory_dataset = result.get("llm_response_discord")
-        llm_response = result.get("query_llm")
+        llm_response = result.get("query_llm_discord")
         if llm_memory_dataset:
             llm_response = llm_memory_dataset.load()
             if len(llm_response) > 1900:

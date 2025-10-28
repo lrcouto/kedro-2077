@@ -1,9 +1,10 @@
-process_transcript:
-  chunk_size: 1000
-  overlap: 200
 
-query:
-  max_chunks: 2
-  user_query: "What is the main plot of the game?"
-  character_bonus: 0.05
-  wiki_weight: 0.7
+chunk_size: 1000
+overlap: 200
+
+
+user_query: "What is the main plot of the game?"
+max_chunks: 2
+max_context_length: 2000
+character_bonus: 0.05
+wiki_weight: 0.7
