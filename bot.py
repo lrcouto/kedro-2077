@@ -18,17 +18,77 @@ bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
-@bot.command(name="hello")
+
+# --- Help command ---
+@bot.command(name="/help")
+async def show_help(ctx):
+    """Display all available bot commands."""
+    embed = discord.Embed(
+        title="🤖 Kedro 2077 Bot — Command Guide",
+        description="Here's what I can do, choom:",
+        color=0x00FFAA
+    )
+
+    embed.add_field(
+        name="🧠 `/query <question>`",
+        value="Ask me anything about Cyberpunk 2077. I'll run the Kedro LLM pipeline and answer data from the game.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🧩 `/build`",
+        value="Rebuild the transcript partitions and wiki embeddings. This may take a while — I'll let you know when it's done.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="ℹ️ `/help`",
+        value="Show this command list.",
+        inline=False
+    )
+
+    embed.set_footer(text="Powered by Kedro 🔶")
+
+    await ctx.send(embed=embed)
+
+
+# --- Test if bot exists ---
+@bot.command(name="/hello")
 async def hello(ctx):
     """Simple hello command to test the bot."""
     await ctx.send("Hello, I am a bot and I exist! 👋")
 
-# --- Kedro pipeline command ---
-@bot.command(name="run-query")
-async def run_query(ctx, *, user_query: str):
-    """Run the Kedro 'query_llm_discord' pipeline with a user query asynchronously."""
 
-    await ctx.send(f"🚀 Running Kedro pipeline `query_discord` for query: `{user_query}`...")
+# --- Build embeddings and partition transcript ---
+@bot.command(name="/build")
+async def build_embeddings(ctx):
+    """Run the data processing pipeline asynchronously."""
+
+    await ctx.send("⏳ Building embeddings from wiki and transcript data, please wait...")
+
+    project_path = Path(__file__).resolve().parent
+    metadata = bootstrap_project(project_path)
+    configure_project(metadata.package_name)
+
+    try:
+        # Run the blocking Kedro code in a separate thread
+        def run_kedro():
+            with KedroSession.create(project_path=project_path) as session:
+                return session.run(pipeline_name="process_transcript")
+
+        await asyncio.to_thread(run_kedro)
+        await ctx.send("✅ Embeddings and transcript partitions built successfully!")
+
+    except Exception as e:
+        await ctx.send(f"❌ Error running pipeline: {e}")
+
+
+# --- Query LLM ---
+@bot.command(name="/query")
+async def run_query(ctx, *, user_query: str):
+    """Run the Kedro 'query_discord' pipeline with a user query asynchronously."""
+
+    await ctx.send(f"🚀 Running Kedro pipeline for query: `{user_query}`...\n\n")
 
     project_path = Path(__file__).resolve().parent
     metadata = bootstrap_project(project_path)
@@ -51,13 +111,17 @@ async def run_query(ctx, *, user_query: str):
         if llm_memory_dataset:
             llm_response = llm_memory_dataset.load()
             if len(llm_response) > 1900:
-                llm_response = llm_response[:1900] + "\n...(truncated)..."
-            await ctx.send(f"🤖 {llm_response}")
+                max_len = 2000
+                for i in range(0, len(llm_response), max_len):
+                    await ctx.send(llm_response[i:i+max_len])
+            else:
+                await ctx.send(llm_response)
         else:
             await ctx.send("⚠️ No response returned by the LLM.")
 
     except Exception as e:
         await ctx.send(f"❌ Error running pipeline: {e}")
+
 
 # --- Run the bot ---
 if __name__ == "__main__":
