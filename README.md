@@ -356,22 +356,14 @@ The prompt template is stored as JSON (`data/prompts/query_prompt.json`) and loa
 
 ## Resources
 
-### Kedro Resources
-
 - [Kedro Documentation](https://docs.kedro.org/) - Comprehensive guide to Kedro
-- [Kedro Academy](https://github.com/kedro-org/kedro-academy) - Learning materials and tutorials
-- [Kedro Community](https://github.com/kedro-org/kedro) - GitHub repository and discussions
-
-### Project Dependencies
-
 - [LangChain Documentation](https://python.langchain.com/) - LLM framework
 - [Discord.py Documentation](https://discordpy.readthedocs.io/) - Discord bot library
 - [Sentence Transformers](https://www.sbert.net/) - Semantic embeddings
 - [OpenAI API](https://platform.openai.com/docs) - LLM provider
 
-### External Resources
-
 - [Cyberpunk Wiki](https://cyberpunk.fandom.com/wiki/Cyberpunk_Wiki) - Game information source
+- [Full Cyberpunk 2077 Transcript](https://game-scripts-wiki.blogspot.com/2020/12/cyberpunk-2077-full-transcript.html) - Game Scripts Wiki Blog
 
 ---
 
