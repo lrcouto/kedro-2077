@@ -1,92 +1,385 @@
-# I am a machine that answers questions about Cyberpunk 2077!
+# Cyberpunk 2077 Knowledge Base with Kedro
 
 [![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+
+A Kedro project that uses LangChain and OpenAI LLMs to answer questions about the videogame Cyberpunk 2077, by querying a transcript of the game and the content of the fan-maintained wiki.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [What is Kedro?](#what-is-kedro)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Data Sources](#data-sources)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [Performance Notes](#performance-notes)
+- [Limitations](#limitations)
+- [Resources](#resources)
 
 ## Overview
 
-This is a small project using Kedro and Langchain to run LLM queries on the full transcript of Cyberpunk 2077, and the content of the Cyberpunk wiki.
+This project demonstrates how to use Kedro to build a question-answering system that:
+
+- Processes large text datasets (game transcripts and wiki content)
+- Generates semantic embeddings for similarity search
+- Retrieves relevant context for user queries
+- Generates accurate responses using Large Language Models (LLMs)
+
+The system can be used in two ways:
+- **CLI Mode**: Interactive command-line chatbot
+- **Discord Bot Mode**: Query the knowledge base from Discord
+
+## What is Kedro?
+
+**Kedro** is an open-source Python framework for creating reproducible, maintainable, and modular data science code. It helps you:
+
+- **Organize your code** into pipelines (sequences of data processing steps)
+- **Manage data** through a catalog system that tracks inputs and outputs
+- **Separate configuration** from code (parameters, credentials, data paths)
+- **Version control** your data science workflows
+
+### Key Kedro Concepts Used in This Project
+
+- **Pipelines**: Sequences of data processing steps (nodes) that transform data
+- **Nodes**: Individual functions that process data (e.g., chunk text, generate embeddings)
+- **Data Catalog**: Configuration file that defines where data comes from and where it goes
+- **Parameters**: Configuration values stored separately from code
+- **Datasets**: Kedro's way of loading and saving data (supports many formats)
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- **Python 3.9 or higher** installed
+- **An OpenAI API key** (get one at [platform.openai.com](https://platform.openai.com))
+- **A Discord bot token** (optional, only if using Discord integration)
+
+## Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configure credentials:**
+   Create `conf/local/credentials.yml`:
+   ```yaml
+   openai:
+     api_key: "your-api-key-here"
+   ```
+
+3. **Add data files:**
+   Place your data files in `data/raw/` (see [Data Sources](#data-sources))
+
+4. **Process the data:**
+   ```bash
+   kedro run --pipeline=process_transcript
+   ```
+
+5. **Run the CLI bot:**
+   ```bash
+   kedro run --pipeline=query_pipeline --tags=cli
+   ```
+
+   Or run the Discord bot:
+   ```bash
+   export DISCORD_TOKEN=your-token
+   python bot.py
+   ```
+
+## Project Structure
+
+Understanding the project structure helps you navigate a Kedro project:
+
+```
+2077-langchain-test/
+├── conf/                   # Configuration files
+│   ├── base/               # Base configuration (shared across environments)
+│   │   ├── catalog.yml     # Data catalog: defines datasets (inputs/outputs)
+│   │   └── parameters.yml  # Parameters: configurable values
+│   └── local/              # Local configuration (not version controlled)
+│       └── credentials.yml # API keys and secrets
+│
+├── data/                   # Data directory (gitignored by default)
+│   ├── raw/                # Raw input data (transcript, wiki)
+│   ├── processed/          # Processed data (embeddings, chunks)
+│   └── prompts/            # Prompt templates
+│
+├── src/                    # Source code
+│   └── kedro_2077/         # Main package
+│       ├── datasets/       # Custom datasets (LangChainPromptDataset)
+│       ├── pipelines/      # Kedro pipelines
+│       │   ├── process_transcript/  # Data processing pipeline
+│       │   └── query_pipeline/      # Query/LLM pipeline
+│       └── utils/          # Utility functions
+│
+├── bot.py                  # Discord bot entry point
+├── requirements.txt        # Python dependencies
+└── pyproject.toml          # Project metadata
+```
+
+### Understanding the Structure
+
+- **`conf/`**: All configuration lives here. Kedro separates configuration from code, making it easy to change settings without modifying code.
+- **`data/`**: Follows Kedro's convention for data organization (raw → processed). This helps track data lineage.
+- **`src/kedro_2077/pipelines/`**: Each pipeline is a separate module containing:
+  - `nodes.py`: Functions that process data
+  - `pipeline.py`: Defines how nodes connect together
+- **`catalog.yml`**: Maps dataset names to file paths and formats. This is how Kedro knows where to load/save data.
 
 ## Setup
 
-- Install requirements with `pip install -r requirements.txt`
-- Add you OpenAI API key to `conf/local/credentials.yml` like this:
+### 1. Install Dependencies
 
-```yml
-openai:
-  api_key: "your-api-key"
+```bash
+pip install -r requirements.txt
 ```
 
-- `kedro run --pipeline=process_transcript` will process the raw data and build embeddings.
+### 2. Configure Credentials
 
-## Running as a CLI "conversation" bot
+Create `conf/local/credentials.yml` (this file is gitignored for security):
 
-Once the data is processed, you can run `kedro run --pipeline=query_pipeline --tags=cli` to start a CLI "chatbot".
+```yaml
+openai:
+  api_key: "sk-your-api-key-here"
+```
 
-## Running as a Discord bot
+**Note**: The `local/` directory is for environment-specific configuration that shouldn't be version controlled.
 
-### Setting up the bot
+### 3. Configure Parameters
 
-Log into your Discord account (or [create](https://discord.do/how-to-create-a-discord-account/) one)
+Key parameters are defined in `conf/base/parameters.yml`. You can adjust:
 
-Go into the [Discord Developer Portal](https://discord.com/developers/applications) and click "New Application":
+- `chunk_size`: Number of sentences per transcript chunk (default: 1000)
+- `overlap`: Overlap between chunks to preserve context (default: 200)
+- `max_chunks`: Maximum number of context chunks to retrieve (default: 2)
+- `max_context_length`: Maximum characters per context block (default: 2000)
+- `embedding_model_name`: SentenceTransformer model (default: "all-MiniLM-L6-v2")
+- `llm_model_name`: OpenAI model to use (default: "gpt-4o-mini")
+- `llm_temperature`: Sampling temperature for LLM (default: 0.2)
+- `character_bonus`: Similarity boost when character names match (default: 0.05)
+- `wiki_weight`: Relative weight of wiki vs transcript similarity (default: 0.7)
 
-- On the "General Information" tab, name and describe your bot.
+## Data Sources
 
-- On the "Bot" tab, look for the "Message Content Intent" option and make sure it's enabled. Without this, the bot will not be able to respond to written commands in a Discord message.
+### 1. Cyberpunk 2077 Transcript
 
-- Click the "Reset Token" button and save the API token that appears on the screen.
+- **File**: `data/raw/Cyberpunk2077Transcript.txt`
+- **Description**: A text file containing the full game transcript with all dialogue
+- **Format**: Plain text, with character names followed by colons (e.g., "Johnny Silverhand: Hello there")
+- **Size**: Approximately 400 pages
 
-- On the "OAuth2" tab, go to the OAuth2 URL Generator and select "bot". Give your bot the following permissions:
-  - View Channels
-  - Read Message history
-  - Send Messages
+### 2. Cyberpunk Wiki
 
-- Save the invite URL at the bottom of the screen.
+- **File**: `data/raw/wiki_clean_text.json`
+- **Description**: JSON file containing wiki page content
+- **Format**: `{"page_title": "page_content", ...}`
+- **Source**: [Cyberpunk Wiki](https://cyberpunk.fandom.com/wiki/Cyberpunk_Wiki)
 
-[Create a new Discord](https://discord.com/blog/starting-your-first-discord-server) server or use one where you have admin permissions, and use the invite URL to have your bot join the server.
 
-### Running the bot
+## Usage
 
-Export the API token from the Discord developer panel to your environment.
+### Processing Data
 
-- `export DISCORD_TOKEN=<your token>`
+Before querying, you need to process the raw data:
 
-Run `bot.py` to initialize the bot. It should appear on your server as an online user.
+```bash
+kedro run --pipeline=process_transcript
+```
 
-Send a direct message to the bot (`@Bot Name`) followed by one of those commands:
+This pipeline:
+1. Chunks the transcript into overlapping segments
+2. Extracts character names
+3. Generates embeddings for wiki pages
+4. Stores everything in the data catalog
 
-- `/help`: Display all commands
+### CLI Chatbot
 
-- `/build`: Run the `process_transcript` pipeline and rebuild embeddings from raw data. 
+Run an interactive command-line chatbot:
 
-- `/query <your query>`: Ask the bot a question about Cyberpunk 2077
+```bash
+kedro run --pipeline=query_pipeline --tags=cli
+```
 
-## How does it work?
+The `--tags=cli` flag tells Kedro to only run nodes tagged with "cli" (the interactive loop node).
 
-### Handling the data
+**Example interaction:**
+```
+I am a machine that answers questions about Cyberpunk 2077!
+Type your question about the game world or characters.
+Type 'exit' to quit.
 
-The core idea of this project is to enable efficient retrieval of message context so that the bot can generate coherent responses using a large language model, while sticking to the information contained in the data sources and avoiding hallucinations.
+🟢 You: Who is Johnny Silverhand?
+⚪ LLM: [Response about Johnny Silverhand...]
+```
 
-There are two files to be used as data sources. One is a 400-page text file that contains the full transcript of a playthrough of Cyberpunk 2077, with all dialogue between characters. The other is a full download of the [Cyberpunk Wiki](https://cyberpunk.fandom.com/wiki/Cyberpunk_Wiki), containing descriptions of missions, characters, items, etc. This second file is in .json format.
+### Discord Bot
 
-For the transcript, I chose to use a `PartitionedDataset` to store intermediate data, such as message embeddings or processed message chunks. This choice allows for looking for specific chunks of the transcript that might contain information relevant to the user query. It also saves a list of character names, to help with this search in case the user asks for information on a specific character.
+#### Setting Up Discord Bot
 
-I chose to use Sentence-Transformers to generate embeddings for textual data. These embeddings capture semantic similarity, enabling the bot to retrieve contextually relevant messages even when users phrase their queries differently. This embedding-based approach significantly improves the bot’s accuracy and coherence compared to simple keyword matching
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click "New Application" and name it
+3. Go to "Bot" tab:
+   - Enable "Message Content Intent" (required for reading messages)
+   - Click "Reset Token" and save the token
+4. Go to "OAuth2" → "URL Generator":
+   - Select "bot" scope
+   - Select permissions: View Channels, Read Message History, Send Messages
+   - Copy the invite URL
+5. Invite the bot to your server using the URL
 
-The embeddings generated from the wiki data were stored in a `PickleDataset`. This provides a convenient way to store Python objects natively (e.g., lists of vectors or fitted models) without additional conversion steps. Although it doesn't have the full benefits of a vector database, it was a quick solution that did not require writing a custom dataset, and the amount of data is small enough that the performance is still adequate.
+#### Running the Bot
 
-### Prompting
+```bash
+export DISCORD_TOKEN=your-bot-token
+python bot.py
+```
 
-The reason this project was initially made was to test the experimental `LangChainPromptDataset` during its development with an actual LLM involved.
+#### Bot Commands
 
-The prompt  itself is stored as a JSON file. This JSON file defines the prompt structure and placeholders for context variables (like the latest message or previous turns). The file is loaded through a `LangChainPromptDataset`, which uses a `JSONDataset` as its underlying Kedro dataset. When the pipeline runs, this configuration is automatically converted into a `ChatPromptTemplate`, allowing for easy iteration and experimentation on prompt design.
+- `/help`: Display all available commands
+- `/build`: Rebuild embeddings and transcript partitions
+- `/query <question>`: Ask a question about Cyberpunk 2077
 
-Specifically for the CLI chatbot version of this project, using the ChatPromptTemplate to structure inputs in a consistent and flexible way. This allows the bot to maintain continuity — it can “remember” prior messages in a conversation and respond coherently while the Kedro session runs.
+## How It Works
 
-### Integration with Discord
+1. **Data Processing**: Transform raw text into searchable embeddings
+2. **Query Processing**: Find relevant context using semantic similarity
+3. **Response Generation**: Use LLM to generate answers based on retrieved context
 
-This project integrates Kedro with Discord using the [discord.py](https://discordpy.readthedocs.io/en/stable/) library. This allows users to trigger data pipelines and query the LLM directly from Discord messages.
+### Pipeline Flow
 
-Since Kedro’s session and pipeline execution are blocking operations, we use Python’s asyncio.to_thread() to offload them into a background thread. This ensures that the Discord bot remains responsive to user input and other commands while Kedro processes data, builds embeddings, or queries the LLM. Each command — such as `/build` or `/query` — bootstraps the Kedro project using `bootstrap_project()` and `configure_project()`, ensuring the full Kedro context is correctly initialized before execution. This also allows multiple users to query the bot simultaneously. 
+#### 1. Data Processing Pipeline (`process_transcript`)
 
-The `/build` command runs the process_transcript pipeline asynchronously to generate embeddings and partitioned transcript data, while the `/query` command executes the query_pipeline with the user’s message as a runtime parameter. The pipeline’s output (including the model’s response and memory dataset) is then streamed back to the Discord channel, automatically handling message length limits and error reporting.
+```
+Raw Transcript → Chunk Transcript → Partition Chunks
+                                      ↓
+Raw Wiki → Embed Wiki Pages → Store Embeddings
+                                      ↓
+Raw Transcript → Extract Characters → Character List
+```
+
+**Kedro Concepts Demonstrated:**
+- **Nodes**: Each arrow represents a node (function) that processes data
+- **Data Catalog**: Inputs/outputs are defined in `catalog.yml`
+- **PartitionedDataset**: Transcript chunks are stored as separate partitions for efficient retrieval
+
+#### 2. Query Pipeline (`query_pipeline`)
+
+```
+User Query → Find Relevant Contexts → Format Prompt → Query LLM → Response
+```
+
+**Kedro Concepts Demonstrated:**
+- **Runtime Parameters**: User query is passed as a runtime parameter
+- **Tags**: Nodes are tagged (`cli` or `discord`) to run different paths
+- **Data Catalog**: Loads processed data (embeddings, chunks) from previous pipeline
+
+### Retrieval Strategy
+
+The system uses **semantic similarity search**:
+
+1. **Embedding Generation**: Both queries and content are converted to embeddings using Sentence-Transformers
+2. **Similarity Calculation**: Cosine similarity finds the most relevant chunks
+3. **Character Boosting**: Queries mentioning character names get a relevance boost for transcript chunks
+4. **Source Weighting**: Wiki and transcript sources are weighted differently (wiki_weight: 0.7)
+5. **Top-K Retrieval**: Returns the top N most relevant contexts
+
+### Prompt Engineering
+
+The prompt template is stored as JSON (`data/prompts/query_prompt.json`) and loaded using a `LangChainPromptDataset`, one of the [experimental datasets available through the `kedro-datasets` plugin](https://github.com/kedro-org/kedro-plugins/blob/main/kedro-datasets/kedro_datasets_experimental/langchain/langchain_prompt_dataset.py) at the time this is being written. This allows:
+
+- Easy experimentation with different prompt structures
+- Separation of prompt design from code
+
+
+## Troubleshooting
+
+### "OpenAI API key not found"
+
+- Ensure `conf/local/credentials.yml` exists
+- Check the file uses correct YAML syntax (indentation matters!)
+- Verify the API key is valid
+
+### "DISCORD_TOKEN not set"
+
+- Export the token: `export DISCORD_TOKEN=your-token`
+- Or set it in your shell configuration file (`.bashrc`, `.zshrc`, etc.)
+- On Windows, use `set DISCORD_TOKEN=your-token` (cmd) or `$env:DISCORD_TOKEN="your-token"` (PowerShell)
+
+### "No data loaded" errors
+
+- Ensure data files are in `data/raw/` directory
+- Check file names match those in `catalog.yml`
+- Run `kedro run --pipeline=process_transcript` first to process the data
+
+### Bot not responding in Discord
+
+- Verify "Message Content Intent" is enabled in Discord Developer Portal
+- Check the bot has proper permissions in your server
+- Look at bot console output for error messages
+- Ensure the bot is online (green status indicator)
+
+### Pipeline execution errors
+
+- Check that all required datasets exist in the catalog
+- Verify parameters are defined in `parameters.yml`
+- Ensure dependencies are installed: `pip install -r requirements.txt`
+
+### Import errors
+
+- Make sure you're in the project root directory
+- Verify the package is installed: `pip install -e .`
+- Check Python version: `python --version` (needs 3.9+)
+
+## Performance Notes
+
+- **Initial embedding generation**: Can take several minutes depending on the user's hardware
+- **Query responses**: Typically 5-15 seconds (depends on context retrieval and LLM response time)
+- **Model loading**: Embedding model loads once per pipeline execution
+- **Memory usage**: Embeddings are stored in memory
+- **Discord bot**: Processes queries asynchronously, allowing multiple users simultaneously
+
+## Limitations
+
+- **In-memory search**: Uses simple similarity search; for production with large datasets, a vector database (e.g., Pinecone, Weaviate) would be preferable
+- **Pickle storage**: Wiki embeddings stored as pickle files; may not scale well for very large datasets
+- **Conversation history**: CLI mode maintains history only within a single session
+- **No persistence**: Discord bot doesn't maintain conversation history between queries
+- **Token limits**: Context is truncated to fit within LLM token limits
+
+## Resources
+
+### Kedro Resources
+
+- [Kedro Documentation](https://docs.kedro.org/) - Comprehensive guide to Kedro
+- [Kedro Academy](https://github.com/kedro-org/kedro-academy) - Learning materials and tutorials
+- [Kedro Community](https://github.com/kedro-org/kedro) - GitHub repository and discussions
+
+### Project Dependencies
+
+- [LangChain Documentation](https://python.langchain.com/) - LLM framework
+- [Discord.py Documentation](https://discordpy.readthedocs.io/) - Discord bot library
+- [Sentence Transformers](https://www.sbert.net/) - Semantic embeddings
+- [OpenAI API](https://platform.openai.com/docs) - LLM provider
+
+### External Resources
+
+- [Cyberpunk Wiki](https://cyberpunk.fandom.com/wiki/Cyberpunk_Wiki) - Game information source
+
+## Credits
+
+- Built with [Kedro](https://kedro.org) - The data science framework
+- Uses [LangChain](https://www.langchain.com/) for LLM integration
+- Powered by OpenAI's GPT models
+- Inspired by Cyberpunk 2077
+
+---
+
+**Note**: This project is designed as a learning resource for understanding Kedro. Feel free to experiment, modify, and learn!
