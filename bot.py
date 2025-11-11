@@ -14,6 +14,39 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
 
+# --- Discord message length constants ---
+DISCORD_MAX_MESSAGE_LENGTH = 2000
+DISCORD_SAFE_MESSAGE_LENGTH = 1900
+
+
+def setup_kedro_project() -> Path:
+    """Bootstrap and configure Kedro project.
+    
+    Returns:
+        Path: The project root path.
+    """
+    project_path = Path(__file__).resolve().parent
+    metadata = bootstrap_project(project_path)
+    configure_project(metadata.package_name)
+    return project_path
+
+
+async def send_long_message(ctx, message: str):
+    """Send a message to Discord, chunking if necessary.
+    
+    Discord has a maximum message length of 2000 characters. This function
+    automatically splits longer messages into multiple chunks.
+    
+    Args:
+        ctx: Discord command context.
+        message: The message text to send.
+    """
+    if len(message) <= DISCORD_SAFE_MESSAGE_LENGTH:
+        await ctx.send(message)
+    else:
+        for i in range(0, len(message), DISCORD_MAX_MESSAGE_LENGTH):
+            await ctx.send(message[i:i+DISCORD_MAX_MESSAGE_LENGTH])
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
@@ -66,9 +99,7 @@ async def build_embeddings(ctx):
 
     await ctx.send("⏳ Building embeddings from wiki and transcript data, please wait...")
 
-    project_path = Path(__file__).resolve().parent
-    metadata = bootstrap_project(project_path)
-    configure_project(metadata.package_name)
+    project_path = setup_kedro_project()
 
     try:
         # Run the blocking Kedro code in a separate thread
@@ -90,9 +121,7 @@ async def run_query(ctx, *, user_query: str):
 
     await ctx.send(f"🚀 Running Kedro pipeline for query: `{user_query}`...\n\n")
 
-    project_path = Path(__file__).resolve().parent
-    metadata = bootstrap_project(project_path)
-    configure_project(metadata.package_name)
+    project_path = setup_kedro_project()
 
     try:
         # Run the blocking Kedro code in a separate thread
@@ -107,15 +136,9 @@ async def run_query(ctx, *, user_query: str):
 
         # Extract LLM node output
         llm_memory_dataset = result.get("llm_response_discord")
-        llm_response = result.get("query_llm_discord")
         if llm_memory_dataset:
             llm_response = llm_memory_dataset.load()
-            if len(llm_response) > 1900:
-                max_len = 2000
-                for i in range(0, len(llm_response), max_len):
-                    await ctx.send(llm_response[i:i+max_len])
-            else:
-                await ctx.send(llm_response)
+            await send_long_message(ctx, llm_response)
         else:
             await ctx.send("⚠️ No response returned by the LLM.")
 
