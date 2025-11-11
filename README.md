@@ -373,12 +373,9 @@ The prompt template is stored as JSON (`data/prompts/query_prompt.json`) and loa
 
 - [Cyberpunk Wiki](https://cyberpunk.fandom.com/wiki/Cyberpunk_Wiki) - Game information source
 
-## Credits
+---
 
-- Built with [Kedro](https://kedro.org) - The data science framework
-- Uses [LangChain](https://www.langchain.com/) for LLM integration
-- Powered by OpenAI's GPT models
-- Inspired by Cyberpunk 2077
+- Inspired by 466 gameplay hours and every single achievement in [Cyberpunk 2077](https://www.cyberpunk.net)
 
 ---
 
