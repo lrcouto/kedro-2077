@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List
 from langchain.prompts import ChatPromptTemplate
+from langchain_core.messages import BaseMessage
 from sentence_transformers import util
 import torch
 
@@ -86,9 +87,26 @@ def format_prompt_with_context(
     user_query: str,
     contexts: List[Dict[str, Any]],
     max_context_length: int = 2000,
-):
-    """
-    Format a ChatPromptTemplate with the user query and retrieved contexts.
+) -> List[BaseMessage]:
+    """Format a ChatPromptTemplate with the user query and retrieved contexts.
+    
+    Combines the user's query with relevant context retrieved from the
+    transcript and wiki, formatting them according to the prompt template.
+    Contexts are truncated to the specified maximum length to fit within
+    token limits.
+    
+    Args:
+        prompt_template: LangChain ChatPromptTemplate to format.
+        user_query: The user's question or query string.
+        contexts: List of context dictionaries, each containing:
+                 - 'source': Either "transcript" or "wiki"
+                 - 'text': The context text
+                 - 'similarity': Similarity score (optional)
+        max_context_length: Maximum length of each context block in characters.
+                           Defaults to 2000.
+    
+    Returns:
+        List of formatted message objects ready to send to the LLM.
     """
 
     context_blocks = []
@@ -117,10 +135,28 @@ def query_llm_cli(
     max_context_length: int = 2000,
     prompt_template: ChatPromptTemplate = None
 ) -> None:
-    """
-    Interactive conversation loop to allow the chat
-    to start automatically when executing `kedro run`.
-    Maintains conversation history for context.
+    """Interactive conversation loop for CLI chatbot interface.
+    
+    Provides an interactive command-line interface for querying the Cyberpunk
+    2077 knowledge base. Maintains conversation history across multiple turns
+    to enable follow-up questions and contextual responses.
+    
+    Args:
+        transcript_chunks: PartitionedDataset containing transcript chunks.
+        wiki_embeddings: Dictionary of wiki page embeddings.
+        character_list: List of character names for relevance boosting.
+        embedding_model_name: Name of the embedding model to use.
+                            Defaults to "all-MiniLM-L6-v2".
+        llm_model_name: Name of the OpenAI model to use.
+                       Defaults to "gpt-4o-mini".
+        llm_temperature: Sampling temperature for the LLM (0.0-2.0).
+                        Defaults to 0.2.
+        max_context_length: Maximum length of context per chunk.
+                          Defaults to 2000.
+        prompt_template: LangChain ChatPromptTemplate for formatting prompts.
+    
+    Returns:
+        None. This function runs an interactive loop until the user exits.
     """
     # Initialize LLM with credentials and parameters
     api_key = get_openai_api_key()
@@ -169,21 +205,29 @@ def query_llm_cli(
 
 
 def query_llm_discord(
-    formatted_prompt: List[Dict[str, Any]],
+    formatted_prompt: List[BaseMessage],
     llm_model_name: str = "gpt-4o-mini",
     llm_temperature: float = 0.2,
 ) -> str:
-    """
-    Run a single LLM query for Discord usage.
-    Returns a string response.
+    """Run a single LLM query for Discord bot usage.
+    
+    Processes a single query and returns the LLM response as a string.
+    This function is designed for use in the Discord bot pipeline where
+    each query is independent (no conversation history).
     
     Args:
-        formatted_prompt: The formatted prompt messages to send to the LLM.
+        formatted_prompt: List of formatted message objects from
+                         format_prompt_with_context().
         llm_model_name: Name of the OpenAI model to use.
-        llm_temperature: Sampling temperature for the LLM.
+                       Defaults to "gpt-4o-mini".
+        llm_temperature: Sampling temperature for the LLM (0.0-2.0).
+                        Defaults to 0.2.
     
     Returns:
-        str: The LLM response content.
+        String containing the LLM's response to the query.
+    
+    Note:
+        If the formatted_prompt is empty, returns a default error message.
     """
     if not formatted_prompt:
         return "Hey choom, I need a question to answer!"
