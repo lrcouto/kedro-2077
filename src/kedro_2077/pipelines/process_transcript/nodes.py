@@ -1,13 +1,9 @@
-"""
-This is a boilerplate pipeline 'process_transcript'
-generated using Kedro 1.0.0
-"""
+"""Nodes for processing the Cyberpunk 2077 transcript and wiki data."""
 import re
 from typing import Any, Dict, List
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
-_model = SentenceTransformer("all-MiniLM-L6-v2")
+from kedro_2077.utils.utils import get_embedding_model
 
 def chunk_transcript(transcript: str, chunk_size: int = 1000, overlap: int = 200) -> List[Dict[str, Any]]:
     """Split the transcript into overlapping chunks for better context."""
@@ -73,12 +69,16 @@ def partition_transcript_chunks(chunks: List[Dict[str, Any]]) -> Dict[str, Dict[
     return partitions
 
 
-def embed_wiki_pages(wiki_data: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
+def embed_wiki_pages(
+    wiki_data: Dict[str, str],
+    embedding_model_name: str = "all-MiniLM-L6-v2"
+) -> Dict[str, Dict[str, Any]]:
     """
     Compute embeddings for each wiki page using SentenceTransformer.
 
     Args:
         wiki_data: Dict where keys are page titles and values are plain text content.
+        embedding_model_name: Name of the SentenceTransformer model to use.
     Returns:
         Dict with structure:
         {
@@ -89,14 +89,14 @@ def embed_wiki_pages(wiki_data: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
             ...
         }
     """
-
+    model = get_embedding_model(embedding_model_name)
     embedded_pages: Dict[str, Dict[str, Any]] = {}
 
     print(f"🧠 Embedding {len(wiki_data)} wiki pages...")
     for title, text in tqdm(wiki_data.items()):
         if not text.strip():
             continue
-        embedding = _model.encode(text, convert_to_numpy=True)
+        embedding = model.encode(text, convert_to_numpy=True)
         embedded_pages[title] = {"text": text, "embedding": embedding}
 
     print(f"✅ Embedded {len(embedded_pages)} pages successfully.")

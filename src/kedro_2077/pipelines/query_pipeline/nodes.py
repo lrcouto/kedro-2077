@@ -2,25 +2,10 @@
 
 from typing import Any, Dict, List
 from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from sentence_transformers import SentenceTransformer, util
-from pathlib import Path
+from sentence_transformers import util
 import torch
 
-from kedro.config import OmegaConfigLoader
-from kedro.framework.project import settings
-
-
-# Load model once so it doesn't reload per node execution
-_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Load credentials and initialize LLM once or they'll reload every time the loop runs
-conf_path = Path(__file__).resolve().parents[4] / settings.CONF_SOURCE
-conf_loader = OmegaConfigLoader(conf_source=str(conf_path))
-credentials = conf_loader["credentials"]
-openai_api_key = credentials["openai"]["api_key"]
-
-llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.2)
+from kedro_2077.utils.utils import get_embedding_model, get_llm, get_openai_api_key
 
 
 def find_relevant_contexts(
@@ -28,6 +13,7 @@ def find_relevant_contexts(
     transcript_chunks: Dict[str, Any],
     wiki_embeddings: Dict[str, Dict[str, Any]],
     character_list: List[str],
+    embedding_model_name: str = "all-MiniLM-L6-v2",
     max_chunks: int = 5,
     character_bonus: float = 0.05,
     wiki_weight: float = 0.7
@@ -40,6 +26,7 @@ def find_relevant_contexts(
         transcript_chunks: PartitionedDataset with text chunks.
         wiki_embeddings: Dict with 'page_title' -> {'text': ..., 'embedding': np.ndarray}.
         character_list: Character names list to boost relevance.
+        embedding_model_name: Name of the SentenceTransformer model to use.
         max_chunks: Max number of transcript chunks to return.
         character_bonus: Similarity boost for character matches.
         wiki_weight: Relative weight of wiki similarity when combining results.
@@ -47,8 +34,8 @@ def find_relevant_contexts(
     Returns:
         List of the most relevant text contexts (mixed transcript + wiki).
     """
-
-    query_emb = _model.encode(query, convert_to_tensor=True)
+    model = get_embedding_model(embedding_model_name)
+    query_emb = model.encode(query, convert_to_tensor=True)
 
     # Characters mentioned in the query
     query_lower = query.lower()
@@ -61,7 +48,7 @@ def find_relevant_contexts(
         if not isinstance(chunk_data, dict) or "text" not in chunk_data:
             continue
         text = chunk_data["text"]
-        emb = _model.encode(text, convert_to_tensor=True)
+        emb = model.encode(text, convert_to_tensor=True)
         sim = util.cos_sim(query_emb, emb).item()
 
         if mentioned_characters:
@@ -124,6 +111,9 @@ def query_llm_cli(
     transcript_chunks: Dict[str, Any] = None,
     wiki_embeddings: Dict[str, Dict[str, Any]] = None,
     character_list: List[str] = None,
+    embedding_model_name: str = "all-MiniLM-L6-v2",
+    llm_model_name: str = "gpt-4o-mini",
+    llm_temperature: float = 0.2,
     max_context_length: int = 2000,
     prompt_template: ChatPromptTemplate = None
 ) -> None:
@@ -132,6 +122,9 @@ def query_llm_cli(
     to start automatically when executing `kedro run`.
     Maintains conversation history for context.
     """
+    # Initialize LLM with credentials and parameters
+    api_key = get_openai_api_key()
+    llm = get_llm(api_key=api_key, model=llm_model_name, temperature=llm_temperature)
 
     print("\nI am a machine that answers questions about Cyberpunk 2077!")
     print("Type your question about the game world or characters.")
@@ -147,12 +140,14 @@ def query_llm_cli(
             print("👋 Goodbye, choom!")
             return ""
 
-        # Hacky cursed loop to find relevant contexts and format prompt each turn
+        # Re-find relevant contexts for each user query to ensure
+        # the most up-to-date context is used based on the conversation flow
         contexts = find_relevant_contexts(
             query=user_query,
             transcript_chunks=transcript_chunks,
             wiki_embeddings=wiki_embeddings,
             character_list=character_list,
+            embedding_model_name=embedding_model_name,
         )
 
         new_messages = format_prompt_with_context(
@@ -175,14 +170,27 @@ def query_llm_cli(
 
 def query_llm_discord(
     formatted_prompt: List[Dict[str, Any]],
+    llm_model_name: str = "gpt-4o-mini",
+    llm_temperature: float = 0.2,
 ) -> str:
     """
     Run a single LLM query for Discord usage.
     Returns a string response.
+    
+    Args:
+        formatted_prompt: The formatted prompt messages to send to the LLM.
+        llm_model_name: Name of the OpenAI model to use.
+        llm_temperature: Sampling temperature for the LLM.
+    
+    Returns:
+        str: The LLM response content.
     """
-
     if not formatted_prompt:
         return "Hey choom, I need a question to answer!"
+
+    # Initialize LLM with credentials and parameters
+    api_key = get_openai_api_key()
+    llm = get_llm(api_key=api_key, model=llm_model_name, temperature=llm_temperature)
 
     # Run LLM
     response = llm.invoke(formatted_prompt)
