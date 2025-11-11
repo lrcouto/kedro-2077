@@ -95,33 +95,31 @@ Before you begin, ensure you have:
 
 ## Project Structure
 
-Understanding the project structure helps you navigate a Kedro project:
-
 ```
 2077-langchain-test/
-├── conf/                   # Configuration files
-│   ├── base/               # Base configuration (shared across environments)
-│   │   ├── catalog.yml     # Data catalog: defines datasets (inputs/outputs)
-│   │   └── parameters.yml  # Parameters: configurable values
-│   └── local/              # Local configuration (not version controlled)
-│       └── credentials.yml # API keys and secrets
+├── conf/                            # Configuration files
+│   ├── base/                        # Base configuration (shared across environments)
+│   │   ├── catalog.yml              # Data catalog: defines datasets (inputs/outputs)
+│   │   └── parameters.yml           # Parameters: configurable values
+│   └── local/                       # Local configuration (not version controlled)
+│       └── credentials.yml          # API keys and secrets
 │
-├── data/                   # Data directory (gitignored by default)
-│   ├── raw/                # Raw input data (transcript, wiki)
-│   ├── processed/          # Processed data (embeddings, chunks)
-│   └── prompts/            # Prompt templates
+├── data/                            # Data directory (gitignored by default)
+│   ├── raw/                         # Raw input data (transcript, wiki)
+│   ├── processed/                   # Processed data (embeddings, chunks)
+│   └── prompts/                     # Prompt templates
 │
-├── src/                    # Source code
-│   └── kedro_2077/         # Main package
-│       ├── datasets/       # Custom datasets (LangChainPromptDataset)
-│       ├── pipelines/      # Kedro pipelines
+├── src/                             # Source code
+│   └── kedro_2077/                  # Main package
+│       ├── datasets/                # Custom datasets (LangChainPromptDataset)
+│       ├── pipelines/               # Kedro pipelines
 │       │   ├── process_transcript/  # Data processing pipeline
 │       │   └── query_pipeline/      # Query/LLM pipeline
-│       └── utils/          # Utility functions
+│       └── utils/                   # Utility functions
 │
-├── bot.py                  # Discord bot entry point
-├── requirements.txt        # Python dependencies
-└── pyproject.toml          # Project metadata
+├── bot.py                           # Discord bot entry point
+├── requirements.txt                 # Python dependencies
+└── pyproject.toml                   # Project metadata
 ```
 
 ### Understanding the Structure
