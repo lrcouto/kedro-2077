@@ -31,7 +31,7 @@ This project demonstrates how to use Kedro to build a question-answering system 
 - Retrieves relevant context for user queries
 - Generates accurate responses using Large Language Models (LLMs)
 
-The system can be used in two ways:
+The project can be used in two ways:
 - **CLI Mode**: Interactive command-line chatbot
 - **Discord Bot Mode**: Query the knowledge base from Discord
 
@@ -171,7 +171,7 @@ Key parameters are defined in `conf/base/parameters.yml`. You can adjust:
 - **File**: `data/raw/Cyberpunk2077Transcript.txt`
 - **Description**: A text file containing the full game transcript with all dialogue
 - **Format**: Plain text, with character names followed by colons (e.g., "Johnny Silverhand: Hello there")
-- **Size**: Approximately 400 pages
+- **Source**: [Game Scripts Wiki Blog](https://game-scripts-wiki.blogspot.com/2020/12/cyberpunk-2077-full-transcript.html)
 
 ### 2. Cyberpunk Wiki
 
